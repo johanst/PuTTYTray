@@ -4450,7 +4450,7 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 			unsigned char *output)
 {
     BYTE keystate[256];
-    int scan, left_alt = 0, key_down, shift_state;
+    int scan, left_alt = 0, key_down, shift_state, xterm_modifier = 0;
     int r, i, code;
     unsigned char *p = output;
     static int alt_sum = 0;
@@ -5107,12 +5107,53 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	    p += sprintf((char *) p, "\x1B[[%c", code + 'A' - 11);
 	    return p - output;
 	}
-	if (funky_type == FUNKY_XTERM && code >= 11 && code <= 14) {
-	    if (term->vt52_mode)
-		p += sprintf((char *) p, "\x1B%c", code + 'P' - 11);
-	    else
-		p += sprintf((char *) p, "\x1BO%c", code + 'P' - 11);
-	    return p - output;
+
+	if (funky_type == FUNKY_XTERM && !term->vt52_mode) {
+            // Xterm with PC-style function keys including modifiers
+            if (keystate[VK_SHIFT] & 0x80) xterm_modifier |= 1;
+            if (keystate[VK_CONTROL] & 0x80) xterm_modifier |= 4; 
+            if (left_alt) xterm_modifier |= 2;
+
+            if (xterm_modifier)
+                ++xterm_modifier;
+
+            if (code >= 11 && code <= 34) {
+                if (left_alt) 
+                    --p; // undo *p++ = '\033';
+
+                switch (wParam) {
+                case VK_F1: code = 11; break;
+                case VK_F2: code = 12; break;
+                case VK_F3: code = 13; break;
+                case VK_F4: code = 14; break;
+                case VK_F5: code = 15; break;
+                case VK_F6: code = 17; break;
+                case VK_F7: code = 18; break;
+                case VK_F8: code = 19; break;
+                case VK_F9: code = 20; break;
+                case VK_F10: code = 21; break;
+                case VK_F11: code = 23; break;
+                case VK_F12: code = 24; break;
+                }
+
+                if (code <= 14) {
+                    if (xterm_modifier)
+                        p += sprintf((char *) p, "\x1BO%d%c", xterm_modifier, code + 'P' - 11);
+                    else
+                        p += sprintf((char *) p, "\x1BO%c", code + 'P' - 11);
+                } else {
+                    if (xterm_modifier)
+                        p += sprintf((char *) p, "\x1B[%d;%d~", code, xterm_modifier);
+                    else
+                        p += sprintf((char *) p, "\x1B[%d~", code);
+                }
+                return p - output;
+            }
+        }
+
+	if (funky_type == FUNKY_XTERM && term->vt52_mode && code >= 11 && code <= 14) {
+            p += sprintf((char *) p, "\x1B%c", code + 'P' - 11);
+            return p - output;
 	}
 	if ((code == 1 || code == 4) &&
 	    conf_get_int(conf, CONF_rxvt_homeend)) {
@@ -5147,7 +5188,15 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 		xkey = 'G';
 		break;
 	    }
-	    if (xkey) {
+            if (xterm_modifier && funky_type == FUNKY_XTERM && !term->vt52_mode &&
+                xkey >= 'A' && xkey <= 'D') {
+
+                if (left_alt) 
+                    --p; // undo *p++ = '\033';
+
+                p += sprintf((char *) p, "\x1B[1;%d%c", xterm_modifier, xkey);
+		return p - output;
+            } else if (xkey) {
 		p += format_arrow_key(p, term, xkey, shift_state);
 		return p - output;
 	    }
