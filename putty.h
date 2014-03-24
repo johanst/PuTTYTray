@@ -358,7 +358,8 @@ enum {
     FUNKY_VT400,
     FUNKY_VT100P,
     FUNKY_SCO,
-    FUNKY_4690 /* LC: function key type for 4690 OS telnet & ssh */ 
+    FUNKY_4690, /* LC: function key type for 4690 OS telnet & ssh */
+    FUNKY_XFREE86
 };
 
 enum {

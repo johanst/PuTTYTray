@@ -4617,7 +4617,7 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 
     /* Sanitize the number pad if not using a PC NumPad */
     if (left_alt || (term->app_keypad_keys && !no_applic_k
-		     && funky_type != FUNKY_XTERM)
+		     && funky_type != FUNKY_XTERM && funky_type != FUNKY_XFREE86)
 	|| funky_type == FUNKY_VT400 || nethack_keypad || compose_state) {
 	if ((HIWORD(lParam) & KF_EXTENDED) == 0) {
 	    int nParam = 0;
@@ -4752,6 +4752,7 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	/* Application Keypad */
 	if (!left_alt) {
 	    int xkey = 0;
+            int is_xterm = funky_type == FUNKY_XTERM || funky_type == FUNKY_XFREE86;
 
 	    if (funky_type == FUNKY_VT400 ||
 		(funky_type <= FUNKY_LINUX &&
@@ -4806,7 +4807,7 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 		    xkey = 'n';
 		    break;
 		  case VK_ADD:
-		    if (funky_type == FUNKY_XTERM) {
+		    if (is_xterm) {
 			if (shift_state)
 			    xkey = 'l';
 			else
@@ -4818,15 +4819,15 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 		    break;
 
 		  case VK_DIVIDE:
-		    if (funky_type == FUNKY_XTERM)
+		    if (is_xterm)
 			xkey = 'o';
 		    break;
 		  case VK_MULTIPLY:
-		    if (funky_type == FUNKY_XTERM)
+		    if (is_xterm)
 			xkey = 'j';
 		    break;
 		  case VK_SUBTRACT:
-		    if (funky_type == FUNKY_XTERM)
+		    if (is_xterm)
 			xkey = 'm';
 		    break;
 
@@ -5108,17 +5109,17 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 	    return p - output;
 	}
 
-	if (funky_type == FUNKY_XTERM && !term->vt52_mode) {
+	if (funky_type == FUNKY_XFREE86 && !term->vt52_mode) {
             // Xterm with PC-style function keys including modifiers
             if (keystate[VK_SHIFT] & 0x80) xterm_modifier |= 1;
-            if (keystate[VK_CONTROL] & 0x80) xterm_modifier |= 4; 
+            if (keystate[VK_CONTROL] & 0x80) xterm_modifier |= 4;
             if (left_alt) xterm_modifier |= 2;
 
             if (xterm_modifier)
                 ++xterm_modifier;
 
             if (code >= 11 && code <= 34) {
-                if (left_alt) 
+                if (left_alt)
                     --p; // undo *p++ = '\033';
 
                 switch (wParam) {
@@ -5151,9 +5152,12 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
             }
         }
 
-	if (funky_type == FUNKY_XTERM && term->vt52_mode && code >= 11 && code <= 14) {
-            p += sprintf((char *) p, "\x1B%c", code + 'P' - 11);
-            return p - output;
+	if (code >= 11 && code <= 14) {
+            if (term->vt52_mode && (funky_type == FUNKY_XTERM || funky_type == FUNKY_XFREE86))
+                p += sprintf((char *) p, "\x1B%c", code + 'P' - 11);
+            else if (funky_type == FUNKY_XTERM)
+		p += sprintf((char *) p, "\x1BO%c", code + 'P' - 11);
+	    return p - output;
 	}
 	if ((code == 1 || code == 4) &&
 	    conf_get_int(conf, CONF_rxvt_homeend)) {
@@ -5188,10 +5192,8 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 		xkey = 'G';
 		break;
 	    }
-            if (xterm_modifier && funky_type == FUNKY_XTERM && !term->vt52_mode &&
-                xkey >= 'A' && xkey <= 'D') {
-
-                if (left_alt) 
+            if (xterm_modifier && xkey >= 'A' && xkey <= 'D') {
+                if (left_alt)
                     --p; // undo *p++ = '\033';
 
                 p += sprintf((char *) p, "\x1B[1;%d%c", xterm_modifier, xkey);
