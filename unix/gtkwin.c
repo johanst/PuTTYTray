@@ -536,6 +536,7 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
     wchar_t ucsoutput[2];
     int ucsval, start, end, special, output_charset, use_ucsoutput;
     int nethack_mode, app_keypad_mode;
+    int xterm_modifier = 0;
 
     /* Remember the timestamp. */
     inst->input_event_time = event->time;
@@ -916,6 +917,9 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 	 */
 	if (app_keypad_mode) {
 	    int xkey = 0;
+            int funky_type = conf_get_int(inst->conf, CONF_funky_type);
+            int is_xterm = funky_type == FUNKY_XTERM || funky_type == FUNKY_XFREE86;
+
 	    switch (event->keyval) {
 	      case GDK_Num_Lock: xkey = 'P'; break;
 	      case GDK_KP_Divide: xkey = 'Q'; break;
@@ -928,7 +932,7 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 		 * in xterm function key mode we change which two...
 		 */
 	      case GDK_KP_Add:
-		if (conf_get_int(inst->conf, CONF_funky_type) == FUNKY_XTERM) {
+		if (is_xterm) {
 		    if (event->state & GDK_SHIFT_MASK)
 			xkey = 'l';
 		    else
@@ -1125,14 +1129,57 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 		use_ucsoutput = FALSE;
 		goto done;
 	    }
-	    if (funky_type == FUNKY_XTERM && code >= 11 && code <= 14) {
-		if (inst->term->vt52_mode)
-		    end = 1 + sprintf(output+1, "\x1B%c", code + 'P' - 11);
-		else
-		    end = 1 + sprintf(output+1, "\x1BO%c", code + 'P' - 11);
-		use_ucsoutput = FALSE;
-		goto done;
-	    }
+
+            if (funky_type == FUNKY_XFREE86 && !inst->term->vt52_mode) {
+                // Xterm with PC-style function keys including modifiers
+                if (event->state & GDK_SHIFT_MASK) xterm_modifier |= 1;
+                if (event->state & GDK_CONTROL_MASK) xterm_modifier |= 4;
+                if (event->state & GDK_MOD1_MASK) xterm_modifier |= 2;
+
+                if (xterm_modifier)
+                    ++xterm_modifier;
+
+                if (code >= 11 && code <= 34) {
+                    switch (event->keyval) {
+                      case GDK_F1: code = 11; break;
+                      case GDK_F2: code = 12; break;
+                      case GDK_F3: code = 13; break;
+                      case GDK_F4: code = 14; break;
+                      case GDK_F5: code = 15; break;
+                      case GDK_F6: code = 17; break;
+                      case GDK_F7: code = 18; break;
+                      case GDK_F8: code = 19; break;
+                      case GDK_F9: code = 20; break;
+                      case GDK_F10: code = 21; break;
+                      case GDK_F11: code = 23; break;
+                      case GDK_F12: code = 24; break;
+                    }
+
+                    if (code <= 14) {
+                        if (xterm_modifier)
+                            end = 1 + sprintf(output+1, "\x1BO%d%c", xterm_modifier, code + 'P' - 11);
+                        else
+                            end = 1 + sprintf(output+1, "\x1BO%c", code + 'P' - 11);
+                    } else {
+                        if (xterm_modifier)
+                            end = 1 + sprintf(output+1, "\x1B[%d;%d~", code, xterm_modifier);
+                        else
+                            end = 1 + sprintf(output+1, "\x1B[%d~", code);
+                    }
+                    use_ucsoutput = FALSE;
+                    goto done;
+                }
+            }
+
+            if (code >= 11 && code <= 14) {
+                if (inst->term->vt52_mode && (funky_type == FUNKY_XTERM || funky_type == FUNKY_XFREE86))
+                    end = 1 + sprintf(output+1, "\x1B%c", code + 'P' - 11);
+                else if (funky_type == FUNKY_XTERM)
+                    end = 1 + sprintf(output+1, "\x1BO%c", code + 'P' - 11);
+	        use_ucsoutput = FALSE;
+	        goto done;
+            }
+
 	    if ((code == 1 || code == 4) &&
 		conf_get_int(inst->conf, CONF_rxvt_homeend)) {
 		end = 1 + sprintf(output+1, code == 1 ? "\x1B[H" : "\x1BOw");
@@ -1162,7 +1209,11 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 	      case GDK_Left: case GDK_KP_Left: xkey = 'D'; break;
 	      case GDK_Begin: case GDK_KP_Begin: xkey = 'G'; break;
 	    }
-	    if (xkey) {
+            if (xterm_modifier && xkey >= 'A' && xkey <= 'D') {
+                end = 1 + sprintf(output+1, "\x1B[1;%d%c", xterm_modifier, xkey);
+		use_ucsoutput = FALSE;
+		goto done;
+	    } else if (xkey) {
 		end = 1 + format_arrow_key(output+1, inst->term, xkey,
 					   event->state & GDK_CONTROL_MASK);
 		use_ucsoutput = FALSE;
