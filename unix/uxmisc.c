@@ -40,6 +40,18 @@ unsigned long getticks(void)
     }
 }
 
+void Sleep(int milliseconds)
+{
+    struct timespec ts, ts_remain;
+    ts.tv_sec = milliseconds / 1000;
+    ts.tv_nsec = (milliseconds / 1000000) % 1000;
+    int stat;
+    do {
+        stat = nanosleep(&ts, &ts_remain);
+        ts = ts_remain;
+    } while (stat == -1 && errno == EINTR);
+}
+
 Filename *filename_from_str(const char *str)
 {
     Filename *ret = snew(Filename);

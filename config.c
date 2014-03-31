@@ -321,7 +321,6 @@ void storagetype_handler(union control *ctrl, void *dlg, void *data, int event)
 {
     int button;
     struct sessionsaver_data *ssd =(struct sessionsaver_data *)ctrl->generic.context.p;
-    Conf *conf = (Conf *)data;
 
     /*
      * For a standard radio button set, the context parameter gives

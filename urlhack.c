@@ -43,7 +43,7 @@ int urlhack_is_in_this_link_region(text_region r, int x, int y)
     return 0;
 }
 
-void urlhack_for_every_link(void (*output)(Terminal *, void *, wchar_t *, int *, int, int)) {
+void urlhack_for_every_link(Terminal* term, void (*output)(Terminal *, void *, wchar_t *, int *, int, int)) {
     unsigned int i;
     for (i = 0; i < link_regions_current_pos; ++i) {
         text_region region = *link_regions[i];

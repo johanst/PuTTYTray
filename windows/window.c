@@ -1198,7 +1198,7 @@ void append_url_to_menu(Terminal *term, void *menu, wchar_t * data, int *attr, i
     sfree(fixed);
 }
 
-void urlhack_for_every_link(void (*output)(Terminal *, void *, wchar_t *, int *, int, int));
+void urlhack_for_every_link(Terminal* term, void (*output)(Terminal *, void *, wchar_t *, int *, int, int));
 
 static void update_url_menu() {
     int i;
@@ -1211,7 +1211,7 @@ static void update_url_menu() {
     url_character_used['/'] = TRUE;
     url_character_used['.'] = TRUE;
 
-    urlhack_for_every_link(&append_url_to_menu);
+    urlhack_for_every_link(term, &append_url_to_menu);
 }
 
 void url_menu_find_and_launch(Terminal *term, void *menu, wchar_t * data, int *attr, int len, int must_deselect) {
@@ -2811,7 +2811,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
             if (wParam >= IDM_URL_MIN && wParam < (IDM_URL_MIN+update_url_id)) {
                 url_target_id = wParam - IDM_URL_MIN;
                 search_url_id = 0;
-                urlhack_for_every_link(&url_menu_find_and_launch);
+                urlhack_for_every_link(term, &url_menu_find_and_launch);
             }
 	}
 	break;

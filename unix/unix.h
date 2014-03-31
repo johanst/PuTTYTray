@@ -12,6 +12,9 @@
 #endif /*  NO_LIBDL */
 #include "charset.h"
 
+/* Mimic WIN32 Sleep(ms) */
+void Sleep(int milliseconds);
+
 struct Filename {
     char *path;
 };
